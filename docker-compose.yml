@@ -1,0 +1,60 @@
+version: '2.4'
+
+services:
+    traefik:
+        container_name: "traefik"
+        image: "traefik:v3.2"
+        ports:
+            - 80:80
+            - 443:443
+        command:
+            - '--providers.docker=true'
+            - '--providers.docker.exposedbydefault=false'
+            - '--providers.docker.watch=true'
+            - '--entrypoints.web=true'
+            - '--entrypoints.web.address=:80'
+            - '--entrypoints.websecure=true'
+            - '--entrypoints.websecure.address=:443'
+            - '--certificatesResolvers.letsencrypt.acme.email=$OPERATOR_EMAIL'
+            - '--certificatesResolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
+            - '--certificatesResolvers.letsencrypt.acme.httpChallenge.entryPoint=web'
+        volumes:
+            - 'acme:/letsencrypt'
+            - '/var/run/docker.sock:/var/run/docker.sock:ro'
+
+    bridge:
+        container_name: webtunnelBridge
+        image: 'thetorproject/webtunnel-bridge:latest'
+        restart: always
+        environment:
+            - NICKNAME=$BRIDGE_NICKNAME
+            - PT_PORT=15000
+            - OR_PORT=$GENEDORPORT
+            - EMAIL=$OPERATOR_EMAIL
+            - WEBTUNNEL_URL=$URL
+        volumes:
+            - 'webtunnel-tor-state:/var/lib/tor'
+        user: debian-tor
+        ports:
+            - '$GENEDORPORT:$GENEDORPORT'
+
+    nginx:
+        container_name: webtunnelNginx
+        image: nginx:alpine
+        restart: always
+        depends_on:
+            - bridge
+        expose:
+            - 80
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+        labels:
+            - 'traefik.enable=true'
+            - "traefik.http.routers.nginx.rule=Host(`$HOSTNAME`)"
+            - "traefik.http.routers.nginx.entrypoints=websecure"
+            - "traefik.http.routers.nginx.tls.certresolver=letsencrypt"
+
+volumes:
+    webtunnel-tor-state:
+    acme:
+
