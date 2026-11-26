@@ -3,7 +3,7 @@ version: '2.4'
 services:
     traefik:
         container_name: "traefik"
-        image: "traefik:v3.2"
+        image: "traefik:v3.7"
         restart: always
         ports:
             - 80:80
